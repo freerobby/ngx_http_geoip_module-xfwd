@@ -28,6 +28,9 @@ typedef struct {
 
 typedef const char *(*ngx_http_geoip_variable_handler_pt)(GeoIP *, u_long addr);
 
+static u_long ngx_http_geoip_addr(ngx_http_request_t *r);
+static u_long ngx_http_geoip_real_addr(ngx_http_request_t *r);
+
 static ngx_int_t ngx_http_geoip_country_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_geoip_org_variable(ngx_http_request_t *r,
@@ -183,6 +186,28 @@ static ngx_http_variable_t  ngx_http_geoip_vars[] = {
 
 static u_long
 ngx_http_geoip_addr(ngx_http_request_t *r)
+{
+  u_char           *ip;
+  size_t            len;
+  in_addr_t         addr;
+  ngx_table_elt_t  *xfwd;
+
+  addr = ngx_http_geoip_real_addr(r);
+
+  xfwd = r->headers_in.x_forwarded_for;
+
+  if (xfwd == NULL) {
+      return addr;
+  }
+  else {
+      len = xfwd->value.len;
+      ip = xfwd->value.data;
+      return ntohl(ngx_inet_addr(ip, len));
+  }
+}
+
+static u_long
+ngx_http_geoip_real_addr(ngx_http_request_t *r)
 {
     struct sockaddr_in   *sin;
 #if (NGX_HAVE_INET6)
