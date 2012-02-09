@@ -187,7 +187,7 @@ static ngx_http_variable_t  ngx_http_geoip_vars[] = {
 static u_long
 ngx_http_geoip_addr(ngx_http_request_t *r)
 {
-  u_char           *ip;
+  u_char           *p, *ip;
   size_t            len;
   in_addr_t         addr;
   ngx_table_elt_t  *xfwd;
@@ -202,6 +202,19 @@ ngx_http_geoip_addr(ngx_http_request_t *r)
   else {
       len = xfwd->value.len;
       ip = xfwd->value.data;
+      
+      // My reverse engineering: if we have multiple IP addresses, use the last one (format would be: client, proxy1, proxy2, etc.)
+      // This would pull a proxy IP address if multiple, but it prevents from forgery (client could send in a bogus first one).
+      // See ngx_http_geo_module.c, line 239 for original implementation of this loop
+      for (p = ip + len - 1; p > ip; p--) {
+        if (*p == ' ' || *p == ',') {
+          p++;
+          len -= p - ip;
+          ip = p;
+          break;
+        }
+      }
+      
       return ntohl(ngx_inet_addr(ip, len));
   }
 }
